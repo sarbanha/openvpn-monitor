@@ -142,12 +142,8 @@ OPENVPN_SMTP_HOST=smtp.example.com
 OPENVPN_SMTP_PORT=465
 OPENVPN_SMTP_SECURITY=tls
 ```
-OPENVPN_SMTP_HOST=localhost
-OPENVPN_SMTP_PORT=25
-OPENVPN_SMTP_USE_TLS=false
+OPENVPN_SMTP_SECURITY=tls
 ```
-
-## Systemd Integration
 
 ## Systemd Integration
 
@@ -163,7 +159,7 @@ This automatically:
 - Copies service and timer files to `/etc/systemd/system/`
 - Updates paths to match your installation directory
 - Enables and starts the timer
-- Configures monitoring to run every **30 seconds**
+- Configures monitoring to run every **10 seconds**
 
 ### Manual Installation
 
@@ -190,11 +186,11 @@ WantedBy=multi-user.target
 **Timer** (`/etc/systemd/system/openvpn-monitor.timer`):
 ```ini
 [Unit]
-Description=Run OpenVPN Monitor every 30 seconds
+Description=Run OpenVPN Monitor every 10 seconds
 
 [Timer]
 OnBootSec=10s
-OnUnitActiveSec=30s
+OnUnitActiveSec=10s
 AccuracySec=1s
 
 [Install]
@@ -316,7 +312,7 @@ echo $OPENVPN_SMTP_HOST
 OpenVPNMonitor/
 ├── openvpn-monitor.py          # Main script
 ├── openvpn-monitor.service     # Systemd service unit
-├── openvpn-monitor.timer       # Systemd timer unit (runs every 30s)
+├── openvpn-monitor.timer       # Systemd timer unit (runs every 10s)
 ├── install-systemd.sh          # Automated systemd installation
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Configuration (auto-loaded)
