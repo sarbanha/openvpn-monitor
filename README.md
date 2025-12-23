@@ -23,7 +23,7 @@ A monitoring script for OpenVPN that detects frozen/stuck services, automaticall
    # OpenVPN Settings
    OPENVPN_NC_HOST=127.0.0.1
    OPENVPN_NC_PORT=7505
-   OPENVPN_SERVICE=openvpn-server@hd
+   OPENVPN_SERVICE=openvpn-server@myconfig
    
    # Email Settings
    OPENVPN_EMAIL_ENABLED=true
@@ -48,7 +48,7 @@ A monitoring script for OpenVPN that detects frozen/stuck services, automaticall
 3. Compares with previous run's hash
 4. If unchanged → service frozen:
    - Gathers diagnostics (systemctl status, load-stats)
-   - Restarts service (`systemctl restart openvpn-server@hd`)
+   - Restarts service (`systemctl restart openvpn-server@myconfig`)
    - Sends email alerts (if enabled)
    - Logs everything to `/var/log/openvpn-monitor.log`
 
@@ -63,7 +63,7 @@ Edit `.env` in the script directory:
 # OpenVPN Settings
 OPENVPN_NC_HOST=127.0.0.1
 OPENVPN_NC_PORT=7505
-OPENVPN_SERVICE=openvpn-server@hd
+OPENVPN_SERVICE=openvpn-server@myconfig
 
 # Email Settings
 OPENVPN_EMAIL_ENABLED=true
@@ -82,7 +82,7 @@ OPENVPN_EMAIL_TO=admin@example.com,ops@example.com
 # OpenVPN Settings
 export OPENVPN_NC_HOST=127.0.0.1
 export OPENVPN_NC_PORT=38248
-export OPENVPN_SERVICE=openvpn-server@hd
+export OPENVPN_SERVICE=openvpn-server@myconfig
 
 # Email Settings
 export OPENVPN_EMAIL_ENABLED=true
@@ -96,7 +96,7 @@ python3 openvpn-monitor.py
 **OpenVPN Connection:**
 - `OPENVPN_NC_HOST` - Management interface host (default: 127.0.0.1)
 - `OPENVPN_NC_PORT` - Management interface port (default: 7505)
-- `OPENVPN_SERVICE` - Systemd service name (default: openvpn-server@hd)
+- `OPENVPN_SERVICE` - Systemd service name (default: openvpn-server@myconfig)
 
 **Email Notification:**
 - `OPENVPN_EMAIL_ENABLED` - Enable/disable emails (default: false)
@@ -252,7 +252,7 @@ Location: `/var/log/openvpn-monitor.log`
 Timestamp: 2025-12-23T10:30:45+00:00
 Condition: status MD5 unchanged (md5=abc123...)
 [... full diagnostics ...]
-Action: systemctl restart openvpn-server@hd
+Action: systemctl restart openvpn-server@myconfig
 Restart return code: 0
 ================================================================================
 ```
