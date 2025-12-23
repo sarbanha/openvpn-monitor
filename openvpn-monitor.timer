@@ -1,0 +1,15 @@
+[Unit]
+Description=Run OpenVPN Monitor every 30 seconds
+Documentation=https://github.com/sarbanha/openvpn-monitor
+
+[Timer]
+# Start 10 seconds after boot
+OnBootSec=10s
+# Run every 30 seconds after the last activation
+OnUnitActiveSec=30s
+# Ensure timer runs accurately
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+

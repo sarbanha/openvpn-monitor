@@ -3,14 +3,22 @@ import hashlib
 import os
 import subprocess
 import fcntl
+import smtplib
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, List
+from dotenv import load_dotenv
 
-NC_HOST = "127.0.0.1"
-NC_PORT = 38248
-SERVICE = "openvpn-server@hd"
+# Load .env file before reading configuration
+load_dotenv()
+
+# OpenVPN configuration
+NC_HOST = os.getenv("OPENVPN_NC_HOST", "127.0.0.1")
+NC_PORT = int(os.getenv("OPENVPN_NC_PORT", "7505"))
+SERVICE = os.getenv("OPENVPN_SERVICE", "openvpn-server@myconfig")
 
 LOG_PATH = Path("/var/log/openvpn-monitor.log")
 STATE_PATH = Path("/var/lib/openvpn-monitor/last_status_md5.txt")
@@ -20,6 +28,16 @@ CMD_TIMEOUT = 15
 STATE_DIR_PERMS = 0o750
 STATE_FILE_PERMS = 0o640
 SEPARATOR_WIDTH = 80
+
+# Email configuration
+SMTP_HOST = os.getenv("OPENVPN_SMTP_HOST", "localhost")
+SMTP_PORT = int(os.getenv("OPENVPN_SMTP_PORT", "25"))
+SMTP_SECURITY = os.getenv("OPENVPN_SMTP_SECURITY", "none").lower()  # Options: none, starttls, tls
+SMTP_USERNAME = os.getenv("OPENVPN_SMTP_USERNAME", "")
+SMTP_PASSWORD = os.getenv("OPENVPN_SMTP_PASSWORD", "")
+EMAIL_FROM = os.getenv("OPENVPN_EMAIL_FROM", "openvpn-monitor@localhost")
+EMAIL_TO = os.getenv("OPENVPN_EMAIL_TO", "").split(",")  # Comma-separated list
+EMAIL_ENABLED = os.getenv("OPENVPN_EMAIL_ENABLED", "false").lower() == "true"
 
 
 class CommandResult(NamedTuple):
@@ -106,6 +124,65 @@ def log_success(md5: str) -> None:
     append_log(f"{ts} SUCCESS probe md5_changed md5={md5}")
 
 
+def send_email_alert(subject: str, body: str, recipients: List[str]) -> bool:
+    """
+    Send email alert to multiple administrators.
+    Returns True if successful, False otherwise.
+    """
+    if not EMAIL_ENABLED:
+        return False
+
+    if not recipients or not any(r.strip() for r in recipients):
+        append_log("Email alert skipped: No recipients configured")
+        return False
+
+    # Filter out empty recipients
+    recipients = [r.strip() for r in recipients if r.strip()]
+
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_FROM
+        msg['To'] = ", ".join(recipients)
+        msg['Subject'] = subject
+        msg['Date'] = datetime.now(timezone.utc).astimezone().strftime("%a, %d %b %Y %H:%M:%S %z")
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Connect to SMTP server with proper security handling
+        if SMTP_SECURITY == "tls":
+            # Direct SSL/TLS connection (port 465)
+            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=30)
+        elif SMTP_SECURITY == "starttls":
+            # Plain connection with STARTTLS upgrade (port 587 or 25)
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+            server.starttls()
+        else:
+            # Plain connection, no encryption (port 25, local servers)
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30)
+
+        # Login only if credentials provided AND server supports AUTH
+        if SMTP_USERNAME and SMTP_PASSWORD:
+            try:
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            except smtplib.SMTPNotSupportedError:
+                # Server doesn't support AUTH - continue without authentication
+                append_log("Warning: SMTP server does not support authentication, sending without login")
+            except smtplib.SMTPAuthenticationError as auth_err:
+                append_log(f"Warning: SMTP authentication failed: {auth_err}, attempting to send anyway")
+
+        # Send email
+        server.sendmail(EMAIL_FROM, recipients, msg.as_string())
+        server.quit()
+
+        append_log(f"Email alert sent successfully to: {', '.join(recipients)}")
+        return True
+
+    except Exception as e:
+        append_log(f"Failed to send email alert: {type(e).__name__}: {e}")
+        return False
+
+
 def main() -> int:
     ensure_state_dir()
 
@@ -175,7 +252,29 @@ def main() -> int:
     block.append("=" * SEPARATOR_WIDTH)
     block.append("")
 
-    append_log("\n".join(block))
+    diagnostic_text = "\n".join(block)
+    append_log(diagnostic_text)
+
+    # Send email alert to administrators
+    hostname = os.uname().nodename
+    email_subject = f"[ALERT] OpenVPN Service Failure on {hostname}"
+    email_body = f"""OpenVPN Monitor has detected a service failure and initiated a restart.
+
+Hostname: {hostname}
+Service: {SERVICE}
+Timestamp: {ts}
+Condition: Status MD5 unchanged (service appears frozen)
+
+Restart Action: systemctl restart {SERVICE}
+Restart Result: Exit code {restart_result.returncode}
+
+Full Diagnostic Details:
+{diagnostic_text}
+
+This is an automated alert from the OpenVPN monitoring system.
+"""
+
+    send_email_alert(email_subject, email_body, EMAIL_TO)
 
     # Update MD5 after restart
     write_last_md5(current_md5)
